@@ -3,85 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SubTranslate AI</title>
+    <title>מתרגם כתוביות AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-black text-white font-sans flex items-center justify-center min-h-screen p-4">
-    <div class="w-full max-w-md bg-[#141414] border border-gray-800 p-8 rounded-lg shadow-2xl">
-        <h1 class="text-3xl font-bold mb-6 text-center text-[#E50914]">NET-SUB AI</h1>
-        <p class="text-gray-400 text-center mb-8 text-sm">תרגום כתוביות חכם מאנגלית לעברית</p>
-        
-        <div class="space-y-4">
-            <input type="password" id="apiKey" placeholder="הכנס OpenAI API Key" 
-                class="w-full p-4 bg-[#333] border-none rounded text-white focus:ring-2 focus:ring-[#E50914] outline-none">
-            
-            <label class="block w-full text-center p-4 bg-transparent border-2 border-dashed border-gray-600 rounded cursor-pointer hover:border-[#E50914]">
-                <span id="fileName">בחר קובץ SRT</span>
-                <input type="file" id="fileInput" accept=".srt" class="hidden" onchange="updateName()">
-            </label>
+<body class="bg-zinc-950 text-zinc-200 font-sans min-h-screen flex flex-col items-center p-6">
 
-            <button onclick="startTranslation()" id="btn" 
-                class="w-full bg-[#E50914] hover:bg-[#b20710] text-white font-bold py-4 rounded transition duration-200">
-                התחל תרגום
-            </button>
+    <div class="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl mt-10">
+        <h1 class="text-2xl font-black text-red-600 text-center mb-2">SUB-AI</h1>
+        <p class="text-zinc-500 text-center text-xs mb-8">תרגום מהיר ישירות מהנייד</p>
+
+        <div class="mb-5">
+            <label class="block text-xs mb-1 mr-1 text-zinc-400">OpenAI API Key</label>
+            <input type="password" id="apiKey" placeholder="הדבק מפתח כאן..." 
+                class="w-full bg-zinc-800 border-none rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-600 outline-none">
         </div>
 
-        <div id="status" class="mt-6 text-center text-sm hidden">
-            <div class="animate-pulse text-red-500 mb-2">● מעבד נתונים...</div>
-            <div id="progress">0%</div>
+        <div class="mb-8">
+            <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-zinc-700 rounded-xl cursor-pointer hover:bg-zinc-800 transition">
+                <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                    <p id="fileName" class="text-sm text-zinc-400">לחץ לבחירת קובץ SRT</p>
+                </div>
+                <input type="file" id="fileInput" accept=".srt" class="hidden" onchange="showName()">
+            </label>
+        </div>
+
+        <button onclick="process()" id="mainBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl shadow-lg transition duration-300">
+            התחל תרגום עכשיו
+        </button>
+
+        <div id="statusBox" class="hidden mt-6 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
+            <div id="loader" class="text-red-500 text-xs font-bold animate-pulse mb-1">מתרגם... נא לא לסגור</div>
+            <div class="w-full bg-zinc-700 h-1.5 rounded-full overflow-hidden">
+                <div id="bar" class="bg-red-600 h-full w-0 transition-all duration-300"></div>
+            </div>
+            <div id="percent" class="text-[10px] text-zinc-500 mt-1 text-left">0%</div>
         </div>
     </div>
 
     <script>
-        function updateName() {
-            const input = document.getElementById('fileInput');
-            document.getElementById('fileName').innerText = input.files[0].name;
+        function showName() {
+            const file = document.getElementById('fileInput').files[0];
+            if (file) document.getElementById('fileName').innerText = file.name;
         }
 
-        async function startTranslation() {
-            const apiKey = document.getElementById('apiKey').value;
-            const fileInput = document.getElementById('fileInput');
-            if (!apiKey || !fileInput.files[0]) return alert("מפתח API וקובץ הם חובה!");
+        async function process() {
+            const key = document.getElementById('apiKey').value;
+            const file = document.getElementById('fileInput').files[0];
+            const btn = document.getElementById('mainBtn');
+            
+            if (!key || !file) return alert("חסר מפתח או קובץ!");
 
-            const file = fileInput.files[0];
+            btn.disabled = true;
+            btn.innerText = "מעבד...";
+            document.getElementById('statusBox').classList.remove('hidden');
+
             const text = await file.text();
             const lines = text.split('\n');
-            const status = document.getElementById('status');
-            const progress = document.getElementById('progress');
+            let output = [];
             
-            status.classList.remove('hidden');
-            let translatedLines = [];
-
-            for (let i = 0; i < Math.min(lines.length, 2800); i++) {
-                let line = lines[i];
-                // תרגום שורות טקסט בלבד
-                if (line.trim() && isNaN(line) && !line.includes('-->')) {
+            // עיבוד שורות
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i].trim();
+                
+                // תרגום רק אם זו שורת טקסט (לא זמן ולא מספר שורה)
+                if (line && isNaN(line) && !line.includes('-->')) {
                     try {
                         const res = await fetch('https://api.openai.com/v1/chat/completions', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
                             body: JSON.stringify({
                                 model: "gpt-4o-mini",
-                                messages: [{role: "system", content: "Translate to Hebrew. Modern slang."}, {role: "user", content: line}]
+                                messages: [{role: "system", content: "Translate to Hebrew. Keep it natural movie style."}, {role: "user", content: line}]
                             })
                         });
                         const data = await res.json();
-                        translatedLines.push(data.choices[0].message.content);
-                    } catch (e) { translatedLines.push(line); }
+                        output.push(data.choices[0].message.content || line);
+                    } catch (e) { output.push(line); }
                 } else {
-                    translatedLines.push(line);
+                    output.push(lines[i]);
+                }
+
+                // עדכון מד התקדמות (כל 10 שורות)
+                if (i % 10 === 0) {
+                    let p = Math.round((i / lines.length) * 100);
+                    document.getElementById('bar').style.width = p + '%';
+                    document.getElementById('percent').innerText = p + '%';
                 }
                 
-                if (i % 5 === 0) progress.innerText = `התקדמות: ${Math.round((i/lines.length)*100)}%`;
+                if (i > 2800) break; // הגבלה לבקשתך
             }
 
-            const blob = new Blob([translatedLines.join('\n')], {type: 'text/plain'});
+            // הורדה
+            const blob = new Blob([output.join('\n')], {type: 'text/plain'});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
             a.download = "Hebrew_" + file.name;
             a.click();
-            status.innerText = "✅ הושלם! הקובץ יורד לטלפון";
+
+            btn.disabled = false;
+            btn.innerText = "הסתיים! הורד שוב";
+            document.getElementById('loader').innerText = "✅ תרגום הושלם";
         }
     </script>
 </body>
